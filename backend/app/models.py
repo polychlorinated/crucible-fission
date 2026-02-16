@@ -30,7 +30,7 @@ class Project(Base):
     
     # Status
     status = Column(String(50), default="pending")  # pending, processing, completed, failed
-    processing_stage = Column(String(100))
+    processing_stage = Column(Text)
     progress_percent = Column(Integer, default=0)
     
     # Metadata
@@ -144,11 +144,17 @@ def create_tables():
     """Create all database tables."""
     Base.metadata.create_all(bind=engine)
     
-    # Migration: Make input_video_url nullable if table exists
+    # Migration: Schema updates
     from sqlalchemy import text
     with engine.connect() as conn:
+        # Make input_video_url nullable
         conn.execute(text("""
             ALTER TABLE projects 
             ALTER COLUMN input_video_url DROP NOT NULL;
+        """))
+        # Make processing_stage Text instead of String(100)
+        conn.execute(text("""
+            ALTER TABLE projects 
+            ALTER COLUMN processing_stage TYPE TEXT;
         """))
         conn.commit()
