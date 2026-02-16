@@ -24,7 +24,7 @@ class Project(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Input
-    input_video_url = Column(Text, nullable=False)
+    input_video_url = Column(Text, nullable=True)
     input_filename = Column(String(255))
     content_type = Column(String(50), default="testimonial")  # testimonial, case_study, founder_story
     
