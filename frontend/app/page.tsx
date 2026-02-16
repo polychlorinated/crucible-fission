@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use relative URLs so Next.js rewrites handle API routing
+const API_BASE = '/api'
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
@@ -30,7 +31,7 @@ export default function Home() {
     formData.append('content_type', 'testimonial')
 
     try {
-      const response = await axios.post(`${API_URL}/api/upload/`, formData, {
+      const response = await axios.post(`${API_BASE}/upload/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

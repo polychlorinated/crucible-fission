@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use relative URLs so Next.js rewrites handle API routing
+const API_BASE = '/api'
 
 // Force dynamic rendering to avoid useSearchParams static generation issues
 export const dynamic = 'force-dynamic'
@@ -33,11 +34,11 @@ function DashboardContent() {
 
     const fetchStatus = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/processing/status/${projectId}`)
+        const response = await axios.get(`${API_BASE}/processing/status/${projectId}`)
         setStatus(response.data)
         
         if (response.data.status === 'completed') {
-          const assetsResponse = await axios.get(`${API_URL}/api/projects/${projectId}/assets`)
+          const assetsResponse = await axios.get(`${API_BASE}/projects/${projectId}/assets`)
           setAssets(assetsResponse.data.assets)
           setLoading(false)
         } else if (response.data.status === 'failed') {
