@@ -1,7 +1,7 @@
 import os
 import uuid
 import shutil
-from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks, Depends
+from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 
