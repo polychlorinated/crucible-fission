@@ -1,12 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// Force dynamic rendering to avoid useSearchParams static generation issues
+export const dynamic = 'force-dynamic'
+
 export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-4 py-16 text-center">
+      <div className="animate-spin text-4xl mb-4">⚙️</div>
+      <p className="text-gray-600">Loading...</p>
+    </div>}>
+      <DashboardContent />
+    </Suspense>
+  )
+}
+
+function DashboardContent() {
   const searchParams = useSearchParams()
   const projectId = searchParams.get('project')
   
