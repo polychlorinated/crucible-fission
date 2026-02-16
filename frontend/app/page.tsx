@@ -31,7 +31,7 @@ export default function Home() {
     formData.append('content_type', 'testimonial')
 
     try {
-      const response = await axios.post(`${API_BASE}/upload`, formData, {
+      const response = await axios.post(`${API_BASE}/upload/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
