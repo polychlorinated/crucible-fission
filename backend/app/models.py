@@ -143,3 +143,12 @@ def get_db():
 def create_tables():
     """Create all database tables."""
     Base.metadata.create_all(bind=engine)
+    
+    # Migration: Make input_video_url nullable if table exists
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("""
+            ALTER TABLE projects 
+            ALTER COLUMN input_video_url DROP NOT NULL;
+        """))
+        conn.commit()
