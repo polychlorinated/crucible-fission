@@ -37,8 +37,20 @@ os.makedirs(settings.temp_dir, exist_ok=True)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
-    create_tables()
-    print("Database initialized")
+    import time
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            create_tables()
+            print("Database initialized")
+            return
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                time.sleep(2)
+            else:
+                print(f"Database connection failed after {max_retries} attempts: {e}")
+                raise
 
 
 @app.get("/")
