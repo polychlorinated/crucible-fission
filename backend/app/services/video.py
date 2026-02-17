@@ -69,13 +69,16 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
         print("Video normalized successfully")
         video_path = normalized_path
     
+    import asyncio
+    
     # Sort moments by importance
     sorted_moments = sorted(moments, key=lambda m: m.importance_score or 0, reverse=True)
     
-    # Process top 5 moments
-    for i, moment in enumerate(sorted_moments[:5]):
+    # Process top 3 moments only (reduce memory pressure)
+    for i, moment in enumerate(sorted_moments[:3]):
         try:
             # 15-second clip
+            print(f"Processing moment {i+1}: 15s clip...")
             await extract_clip(
                 video_path, 
                 float(moment.start_time),
@@ -85,8 +88,10 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
                 project_id,
                 db
             )
+            await asyncio.sleep(2)  # Longer delay between clips
             
             # 5-second micro-clip
+            print(f"Processing moment {i+1}: 5s micro-clip...")
             await extract_clip(
                 video_path,
                 float(moment.start_time),
@@ -97,8 +102,10 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
                 db,
                 is_micro=True
             )
+            await asyncio.sleep(2)
             
-            # Vertical version
+            # Vertical version (most memory intensive)
+            print(f"Processing moment {i+1}: vertical version...")
             await create_vertical_version(
                 video_path,
                 float(moment.start_time),
@@ -108,6 +115,7 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
                 project_id,
                 db
             )
+            await asyncio.sleep(2)
             
         except Exception as e:
             print(f"Error extracting clip for moment {i+1}: {e}")
@@ -135,19 +143,21 @@ async def extract_clip(
     if start_time + duration > video_duration:
         duration = int(video_duration - start_time)
     
-    # First, re-encode to ensure compatibility
+    # Low-memory encoding - copy streams when possible, low thread count
     cmd = [
         'ffmpeg',
         '-y',
+        '-threads', '1',  # Limit to single thread to save memory
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
+        '-vf', 'scale=720:-2',  # Scale to 720 width, keep aspect ratio
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '23',
+        '-crf', '28',  # Higher CRF = lower quality but smaller/more efficient
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',
         '-movflags', '+faststart',
         output_path
     ]
@@ -173,7 +183,7 @@ async def extract_clip(
         file_path=output_path,
         file_size_mb=file_size,
         duration_seconds=duration,
-        dimensions="1280x720",
+        dimensions="720p",
         format="mp4",
         status="completed"
     )
@@ -197,19 +207,21 @@ async def create_vertical_version(
     if start_time + duration > video_duration:
         duration = int(video_duration - start_time)
     
+    # Low-memory vertical version - 720p vertical to avoid OOM
     cmd = [
         'ffmpeg',
         '-y',
+        '-threads', '1',  # Limit to single thread
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
+        '-vf', 'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '23',
+        '-crf', '28',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',
         '-movflags', '+faststart',
         output_path
     ]
@@ -232,7 +244,7 @@ async def create_vertical_version(
         file_path=output_path,
         file_size_mb=file_size,
         duration_seconds=duration,
-        dimensions="1080x1920",
+        dimensions="720x1280",
         format="mp4",
         status="completed"
     )
