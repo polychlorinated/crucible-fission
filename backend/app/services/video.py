@@ -88,6 +88,7 @@ async def extract_clip(
     is_micro: bool = False
 ):
     """Extract a single clip from video."""
+    import asyncio
     
     # Ensure we don't exceed video bounds
     video_duration = get_video_duration(video_path)
@@ -99,19 +100,22 @@ async def extract_clip(
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
+        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
         '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
+        '-preset', 'ultrafast',  # Less CPU/memory intensive
+        '-crf', '28',  # Lower quality = smaller files, less memory
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',  # Lower audio bitrate
         '-movflags', '+faststart',
         '-y',
         output_path
     ]
     
     subprocess.run(cmd, capture_output=True, check=True)
+    
+    # Small delay to let memory settle between clips
+    await asyncio.sleep(0.5)
     
     # Get file size
     file_size = os.path.getsize(output_path) / (1024 * 1024)  # MB
@@ -126,7 +130,7 @@ async def extract_clip(
         file_path=output_path,
         file_size_mb=file_size,
         duration_seconds=duration,
-        dimensions="1920x1080",
+        dimensions="1280x720",
         format="mp4",
         status="completed"
     )
@@ -144,6 +148,7 @@ async def create_vertical_version(
     db: Session
 ):
     """Create vertical 9:16 version for mobile/social."""
+    import asyncio
     
     video_duration = get_video_duration(video_path)
     if start_time + duration > video_duration:
@@ -156,17 +161,20 @@ async def create_vertical_version(
         '-t', str(duration),
         '-vf', 'crop=1080:1920,scale=1080:1920',
         '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
+        '-preset', 'ultrafast',  # Less CPU/memory intensive
+        '-crf', '28',  # Lower quality = smaller files, less memory
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',  # Lower audio bitrate
         '-movflags', '+faststart',
         '-y',
         output_path
     ]
     
     subprocess.run(cmd, capture_output=True, check=True)
+    
+    # Small delay to let memory settle
+    await asyncio.sleep(0.5)
     
     file_size = os.path.getsize(output_path) / (1024 * 1024)
     
