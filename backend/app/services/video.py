@@ -27,11 +27,47 @@ def get_video_duration(video_path: str) -> int:
         return 0
 
 
+async def normalize_video(video_path: str, output_path: str) -> bool:
+    """Normalize video to standard H.264/AAC format for reliable processing."""
+    import asyncio
+    
+    cmd = [
+        'ffmpeg',
+        '-y',
+        '-i', video_path,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        output_path
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Video normalization failed: {result.stderr[:500]}")
+        return False
+    return True
+
+
 async def extract_moment_clips(moments: List[Moment], video_path: str, project_id: str, db: Session):
     """Extract video clips for each moment."""
     
     output_dir = os.path.join(settings.temp_dir, str(project_id), "clips")
     os.makedirs(output_dir, exist_ok=True)
+    
+    # First, normalize the input video to ensure codec compatibility
+    normalized_path = os.path.join(settings.temp_dir, str(project_id), "normalized.mp4")
+    print(f"Normalizing video: {video_path} -> {normalized_path}")
+    
+    if not await normalize_video(video_path, normalized_path):
+        print("Failed to normalize video, trying with original...")
+        normalized_path = video_path  # Fall back to original
+    else:
+        print("Video normalized successfully")
+        video_path = normalized_path
     
     # Sort moments by importance
     sorted_moments = sorted(moments, key=lambda m: m.importance_score or 0, reverse=True)
@@ -75,6 +111,10 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
             
         except Exception as e:
             print(f"Error extracting clip for moment {i+1}: {e}")
+    
+    # Clean up normalized file
+    if normalized_path != video_path and os.path.exists(normalized_path):
+        os.remove(normalized_path)
 
 
 async def extract_clip(

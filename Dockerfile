@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies with full codec support
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libavformat-dev \
@@ -12,6 +12,13 @@ RUN apt-get update && apt-get install -y \
     libavfilter-dev \
     libswscale-dev \
     libswresample-dev \
+    libx264-dev \
+    libx265-dev \
+    libvpx-dev \
+    libfdk-aac-dev \
+    libmp3lame-dev \
+    libopus-dev \
+    libvorbis-dev \
     pkg-config \
     libffi-dev \
     libssl-dev \
