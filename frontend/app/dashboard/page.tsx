@@ -34,11 +34,11 @@ function DashboardContent() {
 
     const fetchStatus = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/processing/status/${projectId}`)
+        const response = await axios.get(`${API_BASE}/processing/status/${projectId}/`)
         setStatus(response.data)
         
         if (response.data.status === 'completed') {
-          const assetsResponse = await axios.get(`${API_BASE}/projects/${projectId}/assets`)
+          const assetsResponse = await axios.get(`${API_BASE}/projects/${projectId}/assets/`)
           setAssets(assetsResponse.data.assets)
           setLoading(false)
         } else if (response.data.status === 'failed') {
