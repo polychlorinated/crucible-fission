@@ -95,24 +95,27 @@ async def extract_clip(
     if start_time + duration > video_duration:
         duration = int(video_duration - start_time)
     
+    # First, re-encode to ensure compatibility
     cmd = [
         'ffmpeg',
+        '-y',
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '28',
+        '-crf', '23',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '96k',
+        '-b:a', '128k',
         '-movflags', '+faststart',
-        '-y',
         output_path
     ]
     
-    subprocess.run(cmd, capture_output=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"FFmpeg stderr: {result.stderr}")
+        raise Exception(f"FFmpeg failed with code {result.returncode}: {result.stderr[:500]}")
     
     # Small delay to let memory settle between clips
     await asyncio.sleep(0.5)
@@ -156,22 +159,25 @@ async def create_vertical_version(
     
     cmd = [
         'ffmpeg',
+        '-y',
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
         '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '28',
+        '-crf', '23',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '96k',
+        '-b:a', '128k',
         '-movflags', '+faststart',
-        '-y',
         output_path
     ]
     
-    subprocess.run(cmd, capture_output=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"FFmpeg stderr: {result.stderr}")
+        raise Exception(f"FFmpeg failed with code {result.returncode}: {result.stderr[:500]}")
     
     # Small delay to let memory settle
     await asyncio.sleep(0.5)
