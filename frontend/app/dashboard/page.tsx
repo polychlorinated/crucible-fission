@@ -159,6 +159,8 @@ function AssetCard({ asset }: { asset: any }) {
           >
             Download →
           </a>
+        ) : asset.content ? (
+          <span className="text-green-600 text-sm">✓ Ready</span>
         ) : (
           <span className="text-gray-400 text-sm">Processing...</span>
         )}

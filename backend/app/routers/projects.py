@@ -40,6 +40,7 @@ async def get_project_assets(project_id: UUID, db: Session = Depends(get_db)):
             "asset_type": a.asset_type,
             "title": a.title,
             "description": a.description,
+            "content": a.content,
             "file_url": a.file_url,
             "duration_seconds": a.duration_seconds,
             "status": a.status
