@@ -100,13 +100,13 @@ async def extract_clip(
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',  # Less CPU/memory intensive
-        '-crf', '28',  # Lower quality = smaller files, less memory
+        '-preset', 'ultrafast',
+        '-crf', '28',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '96k',  # Lower audio bitrate
+        '-b:a', '96k',
         '-movflags', '+faststart',
         '-y',
         output_path
@@ -159,13 +159,13 @@ async def create_vertical_version(
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'crop=1080:1920,scale=1080:1920',
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',  # Less CPU/memory intensive
-        '-crf', '28',  # Lower quality = smaller files, less memory
+        '-preset', 'ultrafast',
+        '-crf', '28',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '96k',  # Lower audio bitrate
+        '-b:a', '96k',
         '-movflags', '+faststart',
         '-y',
         output_path

@@ -141,15 +141,15 @@ function AssetCard({ asset }: { asset: any }) {
           <span className="text-4xl">🎬</span>
         </div>
       ) : (
-        <div className="aspect-video bg-gray-100 p-4 flex items-center justify-center">
-          <p className="text-sm text-gray-600 line-clamp-4">{asset.content || asset.title}</p>
+        <div className="aspect-video bg-gray-100 p-4 overflow-auto">
+          <p className="text-sm text-gray-600 whitespace-pre-wrap">{asset.content || asset.title}</p>
         </div>
       )}
-      
+
       <div className="p-4">
         <h3 className="font-semibold text-sm mb-1 truncate">{asset.title}</h3>
         <p className="text-xs text-gray-500 mb-3">{asset.asset_type}</p>
-        
+
         {asset.file_url ? (
           <a
             href={asset.file_url}
@@ -160,7 +160,12 @@ function AssetCard({ asset }: { asset: any }) {
             Download →
           </a>
         ) : asset.content ? (
-          <span className="text-green-600 text-sm">✓ Ready</span>
+          <button
+            onClick={() => navigator.clipboard.writeText(asset.content)}
+            className="text-green-600 text-sm hover:underline"
+          >
+            ✓ Ready (Click to Copy)
+          </button>
         ) : (
           <span className="text-gray-400 text-sm">Processing...</span>
         )}
