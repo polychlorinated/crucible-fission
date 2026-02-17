@@ -104,18 +104,18 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
             )
             await asyncio.sleep(2)
             
-            # Vertical version (most memory intensive)
-            print(f"Processing moment {i+1}: vertical version...")
-            await create_vertical_version(
-                video_path,
-                float(moment.start_time),
-                15,
-                os.path.join(output_dir, f"moment_{i+1}_vertical.mp4"),
-                moment,
-                project_id,
-                db
-            )
-            await asyncio.sleep(2)
+            # Skip vertical version on Railway free tier - requires too much memory
+            # print(f"Processing moment {i+1}: vertical version...")
+            # await create_vertical_version(
+            #     video_path,
+            #     float(moment.start_time),
+            #     15,
+            #     os.path.join(output_dir, f"moment_{i+1}_vertical.mp4"),
+            #     moment,
+            #     project_id,
+            #     db
+            # )
+            # await asyncio.sleep(2)
             
         except Exception as e:
             print(f"Error extracting clip for moment {i+1}: {e}")
@@ -143,21 +143,22 @@ async def extract_clip(
     if start_time + duration > video_duration:
         duration = int(video_duration - start_time)
     
-    # Low-memory encoding - copy streams when possible, low thread count
+    # Low-memory encoding - aggressive settings for Railway free tier
     cmd = [
         'ffmpeg',
         '-y',
-        '-threads', '1',  # Limit to single thread to save memory
+        '-threads', '1',
         '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', 'scale=720:-2',  # Scale to 720 width, keep aspect ratio
+        '-vf', 'scale=480:-2',  # Lower resolution to save memory
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '28',  # Higher CRF = lower quality but smaller/more efficient
+        '-crf', '30',  # Higher CRF = lower quality but much faster
+        '-x264-params', 'threads=1:lookahead-threads=1',  # Force x264 to use 1 thread
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '96k',
+        '-b:a', '64k',
         '-movflags', '+faststart',
         output_path
     ]
@@ -183,7 +184,7 @@ async def extract_clip(
         file_path=output_path,
         file_size_mb=file_size,
         duration_seconds=duration,
-        dimensions="720p",
+        dimensions="480p",
         format="mp4",
         status="completed"
     )
