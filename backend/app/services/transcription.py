@@ -36,7 +36,9 @@ async def transcribe_video(video_path: str, project_id: str, db: Session) -> Dic
     model = get_model()
     
     # Extract audio first (Whisper works better with audio files)
-    audio_path = video_path.replace('.mp4', '_audio.wav')
+    import os
+    base_path = os.path.splitext(video_path)[0]
+    audio_path = f"{base_path}_audio.wav"
     
     # Use ffmpeg to extract audio
     import subprocess

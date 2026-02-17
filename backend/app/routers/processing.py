@@ -9,6 +9,7 @@ router = APIRouter()
 
 
 @router.get("/status/{project_id}")
+@router.get("/status/{project_id}/")
 async def get_status(project_id: UUID, db: Session = Depends(get_db)):
     """Get processing status for a project."""
     project = db.query(Project).filter(Project.id == project_id).first()

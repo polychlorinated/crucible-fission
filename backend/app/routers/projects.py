@@ -27,6 +27,7 @@ async def get_project(project_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/assets")
+@router.get("/{project_id}/assets/")
 async def get_project_assets(project_id: UUID, db: Session = Depends(get_db)):
     """Get all assets for a project."""
     project = db.query(Project).filter(Project.id == project_id).first()
