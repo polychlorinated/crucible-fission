@@ -3,12 +3,14 @@
 import os
 from typing import Dict, Any
 from faster_whisper import WhisperModel
+from imageio_ffmpeg import get_ffmpeg_exe
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Transcript
 
 settings = get_settings()
+FFMPEG_PATH = get_ffmpeg_exe()
 
 # Initialize model (will download on first run if not present)
 _model = None
@@ -42,8 +44,12 @@ async def transcribe_video(video_path: str, project_id: str, db: Session) -> Dic
     
     # Use ffmpeg to extract audio
     import subprocess
+
+    print(f"[Transcription] Extracting audio from: {video_path}")
+    print(f"[Transcription] Using FFmpeg: {FFMPEG_PATH}")
+
     cmd = [
-        'ffmpeg',
+        FFMPEG_PATH,
         '-i', video_path,
         '-vn',  # No video
         '-acodec', 'pcm_s16le',  # PCM 16-bit
@@ -52,8 +58,11 @@ async def transcribe_video(video_path: str, project_id: str, db: Session) -> Dic
         '-y',  # Overwrite
         audio_path
     ]
-    
-    subprocess.run(cmd, capture_output=True, check=True)
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[Transcription] FFmpeg error: {result.stderr[:1000]}")
+        raise Exception(f"FFmpeg audio extraction failed: {result.stderr[:500]}")
     
     try:
         # Transcribe

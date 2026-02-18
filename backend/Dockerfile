@@ -2,10 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Note: ffmpeg is now bundled via imageio-ffmpeg, no system install needed
 
 # Copy requirements
 COPY requirements.txt .

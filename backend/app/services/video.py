@@ -4,18 +4,29 @@ import os
 import subprocess
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
+from imageio_ffmpeg import get_ffmpeg_exe
 
 from app.config import get_settings
 from app.models import Asset, Moment
 
 settings = get_settings()
+FFMPEG_PATH = get_ffmpeg_exe()
+
+
+def log_ffmpeg_error(result: subprocess.CompletedProcess, context: str):
+    """Log FFmpeg errors for debugging."""
+    print(f"[FFmpeg Error - {context}] Exit code: {result.returncode}")
+    print(f"[FFmpeg Error - {context}] Stderr: {result.stderr[:1000] if result.stderr else 'None'}")
+    print(f"[FFmpeg Error - {context}] Stdout: {result.stdout[:500] if result.stdout else 'None'}")
 
 
 def get_video_duration(video_path: str) -> int:
     """Get video duration in seconds using ffprobe."""
     try:
+        # Use ffprobe from the same bundle as ffmpeg
+        ffprobe_path = FFMPEG_PATH.replace('ffmpeg', 'ffprobe')
         cmd = [
-            'ffprobe',
+            ffprobe_path,
             '-v', 'error',
             '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -23,16 +34,25 @@ def get_video_duration(video_path: str) -> int:
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return int(float(result.stdout.strip()))
-    except:
+    except Exception as e:
+        print(f"[Video] Failed to get duration for {video_path}: {e}")
         return 0
 
 
 async def normalize_video(video_path: str, output_path: str) -> bool:
     """Normalize video to standard H.264/AAC format for reliable processing."""
     import asyncio
-    
+
+    print(f"[Video] Normalizing: {video_path} -> {output_path}")
+    print(f"[Video] Input exists: {os.path.exists(video_path)}")
+    print(f"[Video] Using FFmpeg: {FFMPEG_PATH}")
+
+    if not os.path.exists(video_path):
+        print(f"[Video] ERROR: Input file not found: {video_path}")
+        return False
+
     cmd = [
-        'ffmpeg',
+        FFMPEG_PATH,
         '-y',
         '-i', video_path,
         '-c:v', 'libx264',
@@ -44,11 +64,13 @@ async def normalize_video(video_path: str, output_path: str) -> bool:
         '-movflags', '+faststart',
         output_path
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Video normalization failed: {result.stderr[:500]}")
+        log_ffmpeg_error(result, "normalize_video")
         return False
+
+    print(f"[Video] Normalization successful: {output_path}")
     return True
 
 
@@ -145,7 +167,7 @@ async def extract_clip(
     
     # Low-memory encoding - aggressive settings for Railway free tier
     cmd = [
-        'ffmpeg',
+        FFMPEG_PATH,
         '-y',
         '-threads', '1',
         '-i', video_path,
@@ -162,11 +184,11 @@ async def extract_clip(
         '-movflags', '+faststart',
         output_path
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"FFmpeg stderr: {result.stderr}")
-        raise Exception(f"FFmpeg failed with code {result.returncode}: {result.stderr[:500]}")
+        log_ffmpeg_error(result, f"extract_clip_{duration}s")
+        raise Exception(f"FFmpeg failed with code {result.returncode}")
     
     # Small delay to let memory settle between clips
     await asyncio.sleep(0.5)
@@ -210,7 +232,7 @@ async def create_vertical_version(
     
     # Low-memory vertical version - 720p vertical to avoid OOM
     cmd = [
-        'ffmpeg',
+        FFMPEG_PATH,
         '-y',
         '-threads', '1',  # Limit to single thread
         '-i', video_path,
@@ -226,11 +248,11 @@ async def create_vertical_version(
         '-movflags', '+faststart',
         output_path
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"FFmpeg stderr: {result.stderr}")
-        raise Exception(f"FFmpeg failed with code {result.returncode}: {result.stderr[:500]}")
+        log_ffmpeg_error(result, "create_vertical_version")
+        raise Exception(f"FFmpeg failed with code {result.returncode}")
     
     # Small delay to let memory settle
     await asyncio.sleep(0.5)
