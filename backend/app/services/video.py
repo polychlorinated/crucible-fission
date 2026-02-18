@@ -158,8 +158,9 @@ async def extract_clip(
     db: Session,
     is_micro: bool = False
 ):
-    """Extract a single clip from video."""
+    """Extract a single clip from video and upload to storage."""
     import asyncio
+    from app.services.storage import upload_to_drive, create_folder
     
     # Ensure we don't exceed video bounds
     video_duration = get_video_duration(video_path)
@@ -197,7 +198,7 @@ async def extract_clip(
     # Get file size
     file_size = os.path.getsize(output_path) / (1024 * 1024)  # MB
     
-    # Create asset record
+    # Create asset record first (pending status)
     asset_type = "video_micro" if is_micro else "video_clip"
     asset = Asset(
         project_id=project_id,
@@ -209,10 +210,24 @@ async def extract_clip(
         duration_seconds=duration,
         dimensions="480p",
         format="mp4",
-        status="completed"
+        status="processing"
     )
     db.add(asset)
     db.commit()
+    
+    # Upload to Google Drive for persistent storage
+    try:
+        filename = os.path.basename(output_path)
+        file_url = await upload_to_drive(output_path, filename)
+        asset.file_url = file_url
+        asset.status = "completed"
+        db.commit()
+        print(f"[Video] Uploaded to Drive: {file_url}")
+    except Exception as e:
+        print(f"[Video] Failed to upload to Drive: {e}")
+        # Keep local file path - can still be downloaded from same instance
+        asset.status = "completed"
+        db.commit()
 
 
 async def create_vertical_version(
@@ -226,6 +241,7 @@ async def create_vertical_version(
 ):
     """Create vertical 9:16 version for mobile/social."""
     import asyncio
+    from app.services.storage import upload_to_drive
     
     video_duration = get_video_duration(video_path)
     if start_time + duration > video_duration:
@@ -270,10 +286,23 @@ async def create_vertical_version(
         duration_seconds=duration,
         dimensions="720x1280",
         format="mp4",
-        status="completed"
+        status="processing"
     )
     db.add(asset)
     db.commit()
+    
+    # Upload to Google Drive for persistent storage
+    try:
+        filename = os.path.basename(output_path)
+        file_url = await upload_to_drive(output_path, filename)
+        asset.file_url = file_url
+        asset.status = "completed"
+        db.commit()
+        print(f"[Video] Uploaded vertical to Drive: {file_url}")
+    except Exception as e:
+        print(f"[Video] Failed to upload vertical to Drive: {e}")
+        asset.status = "completed"
+        db.commit()
 
 
 async def add_captions(video_path: str, captions_srt: str, output_path: str):
