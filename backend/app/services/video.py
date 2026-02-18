@@ -52,9 +52,11 @@ async def normalize_video(video_path: str, output_path: str) -> bool:
         print(f"[Video] ERROR: Input file not found: {video_path}")
         return False
 
+    # First attempt: standard normalization with error recovery for corrupted frames
     cmd = [
         FFMPEG_PATH,
         '-y',
+        '-err_detect', 'ignore_err',  # Ignore decode errors (helps with .mov files)
         '-i', video_path,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
@@ -63,16 +65,41 @@ async def normalize_video(video_path: str, output_path: str) -> bool:
         '-c:a', 'aac',
         '-b:a', '128k',
         '-movflags', '+faststart',
+        '-fflags', '+genpts',  # Generate presentation timestamps if missing
         output_path
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        log_ffmpeg_error(result, "normalize_video")
-        return False
-
-    print(f"[Video] Normalization successful: {output_path}")
-    return True
+    if result.returncode == 0:
+        print(f"[Video] Normalization successful: {output_path}")
+        return True
+    
+    # Second attempt: more aggressive error recovery for problematic files
+    print(f"[Video] First attempt failed, trying with more aggressive error recovery...")
+    cmd2 = [
+        FFMPEG_PATH,
+        '-y',
+        '-fflags', '+discardcorrupt',  # Discard corrupted frames
+        '-err_detect', 'ignore_err',
+        '-i', video_path,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',  # Lower quality but more resilient
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '96k',
+        '-movflags', '+faststart',
+        output_path
+    ]
+    
+    result2 = subprocess.run(cmd2, capture_output=True, text=True)
+    if result2.returncode == 0:
+        print(f"[Video] Normalization successful (recovery mode): {output_path}")
+        return True
+    
+    log_ffmpeg_error(result, "normalize_video")
+    log_ffmpeg_error(result2, "normalize_video_recovery")
+    return False
 
 
 async def extract_moment_clips(moments: List[Moment], video_path: str, project_id: str, db: Session):
@@ -97,10 +124,14 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
     # Sort moments by importance
     sorted_moments = sorted(moments, key=lambda m: m.importance_score or 0, reverse=True)
     
+    # Track success/failure
+    clips_created = 0
+    clips_failed = 0
+    
     # Process top 3 moments only (reduce memory pressure)
     for i, moment in enumerate(sorted_moments[:3]):
+        # 15-second clip
         try:
-            # 15-second clip
             print(f"Processing moment {i+1}: 15s clip...")
             await extract_clip(
                 video_path, 
@@ -111,9 +142,14 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
                 project_id,
                 db
             )
+            clips_created += 1
             await asyncio.sleep(2)  # Longer delay between clips
-            
-            # 5-second micro-clip
+        except Exception as e:
+            print(f"Error extracting 15s clip for moment {i+1}: {e}")
+            clips_failed += 1
+        
+        # 5-second micro-clip
+        try:
             print(f"Processing moment {i+1}: 5s micro-clip...")
             await extract_clip(
                 video_path,
@@ -125,23 +161,13 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
                 db,
                 is_micro=True
             )
+            clips_created += 1
             await asyncio.sleep(2)
-            
-            # Skip vertical version on Railway free tier - requires too much memory
-            # print(f"Processing moment {i+1}: vertical version...")
-            # await create_vertical_version(
-            #     video_path,
-            #     float(moment.start_time),
-            #     15,
-            #     os.path.join(output_dir, f"moment_{i+1}_vertical.mp4"),
-            #     moment,
-            #     project_id,
-            #     db
-            # )
-            # await asyncio.sleep(2)
-            
         except Exception as e:
-            print(f"Error extracting clip for moment {i+1}: {e}")
+            print(f"Error extracting 5s clip for moment {i+1}: {e}")
+            clips_failed += 1
+    
+    print(f"Clip extraction complete: {clips_created} created, {clips_failed} failed")
     
     # Clean up normalized file
     if normalized_path != video_path and os.path.exists(normalized_path):
