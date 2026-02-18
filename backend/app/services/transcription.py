@@ -1,16 +1,16 @@
 """Transcription service using self-hosted Whisper."""
 
 import os
+import shutil
 from typing import Dict, Any
 from faster_whisper import WhisperModel
-from imageio_ffmpeg import get_ffmpeg_exe
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Transcript
 
 settings = get_settings()
-FFMPEG_PATH = get_ffmpeg_exe()
+FFMPEG_PATH = shutil.which("ffmpeg") or "ffmpeg"
 
 # Initialize model (will download on first run if not present)
 _model = None

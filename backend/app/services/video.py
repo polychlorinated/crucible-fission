@@ -1,16 +1,19 @@
 """Video processing service using FFmpeg."""
 
 import os
+import shutil
 import subprocess
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from imageio_ffmpeg import get_ffmpeg_exe
 
 from app.config import get_settings
 from app.models import Asset, Moment
 
 settings = get_settings()
-FFMPEG_PATH = get_ffmpeg_exe()
+
+# Get ffmpeg path - prefer system ffmpeg, fallback to bundled
+FFMPEG_PATH = shutil.which("ffmpeg") or "ffmpeg"
+FFPROBE_PATH = shutil.which("ffprobe") or "ffprobe"
 
 
 def log_ffmpeg_error(result: subprocess.CompletedProcess, context: str):
@@ -23,10 +26,8 @@ def log_ffmpeg_error(result: subprocess.CompletedProcess, context: str):
 def get_video_duration(video_path: str) -> int:
     """Get video duration in seconds using ffprobe."""
     try:
-        # Use ffprobe from the same bundle as ffmpeg
-        ffprobe_path = FFMPEG_PATH.replace('ffmpeg', 'ffprobe')
         cmd = [
-            ffprobe_path,
+            FFPROBE_PATH,
             '-v', 'error',
             '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1',
