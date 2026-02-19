@@ -41,20 +41,27 @@ app.mount("/clips", StaticFiles(directory=settings.temp_dir), name="clips")
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
+    import asyncio
     import time
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            create_tables()
-            print("Database initialized")
-            return
-        except Exception as e:
-            if attempt < max_retries - 1:
-                print(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
-                time.sleep(2)
-            else:
-                print(f"Database connection failed after {max_retries} attempts: {e}")
-                # Don't raise - let the app start anyway
+    
+    # Run DB init in background to not block startup
+    async def init_db():
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                create_tables()
+                print("Database initialized")
+                return
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    await asyncio.sleep(2)
+                else:
+                    print(f"Database connection failed after {max_retries} attempts: {e}")
+                    # Don't raise - let the app start anyway
+    
+    # Start DB init in background
+    asyncio.create_task(init_db())
 
 
 @app.get("/")
