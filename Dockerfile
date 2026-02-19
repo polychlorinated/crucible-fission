@@ -38,5 +38,9 @@ COPY backend/app/ ./app/
 # Expose port (Railway provides PORT env var)
 EXPOSE 8000
 
-# Run with PORT from environment
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Copy and use entrypoint script
+COPY start.sh .
+RUN chmod +x start.sh
+
+ENV PYTHONUNBUFFERED=1
+CMD ["./start.sh"]
