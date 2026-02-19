@@ -130,14 +130,25 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
     
     # Process top 3 moments only (reduce memory pressure)
     for i, moment in enumerate(sorted_moments[:3]):
-        # 15-second clip
+        # Calculate actual moment duration from analysis
+        actual_duration = float(moment.end_time or 0) - float(moment.start_time or 0)
+        
+        # Use actual moment duration if it's reasonable (5-30s), otherwise default to 15s
+        if 5.0 <= actual_duration <= 30.0:
+            clip_duration = int(actual_duration)
+            print(f"Processing moment {i+1}: Using actual duration {clip_duration}s (from {moment.start_time:.1f}s to {moment.end_time:.1f}s)")
+        else:
+            clip_duration = 15
+            print(f"Processing moment {i+1}: Using default 15s duration (actual was {actual_duration:.1f}s)")
+        
+        # Main clip - use actual moment boundaries
         try:
-            print(f"Processing moment {i+1}: 15s clip...")
+            print(f"Processing moment {i+1}: main clip ({clip_duration}s)...")
             await extract_clip(
                 video_path, 
                 float(moment.start_time),
-                15,
-                os.path.join(output_dir, f"moment_{i+1}_15s.mp4"),
+                clip_duration,
+                os.path.join(output_dir, f"moment_{i+1}_main.mp4"),
                 moment,
                 project_id,
                 db
@@ -145,17 +156,17 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
             clips_created += 1
             await asyncio.sleep(2)  # Longer delay between clips
         except Exception as e:
-            print(f"Error extracting 15s clip for moment {i+1}: {e}")
+            print(f"Error extracting main clip for moment {i+1}: {e}")
             clips_failed += 1
         
-        # 5-second micro-clip
+        # 5-second micro-clip (best quote only)
         try:
             print(f"Processing moment {i+1}: 5s micro-clip...")
             await extract_clip(
                 video_path,
                 float(moment.start_time),
                 5,
-                os.path.join(output_dir, f"moment_{i+1}_5s.mp4"),
+                os.path.join(output_dir, f"moment_{i+1}_micro.mp4"),
                 moment,
                 project_id,
                 db,
@@ -164,16 +175,16 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
             clips_created += 1
             await asyncio.sleep(2)
         except Exception as e:
-            print(f"Error extracting 5s clip for moment {i+1}: {e}")
+            print(f"Error extracting micro clip for moment {i+1}: {e}")
             clips_failed += 1
         
-        # Vertical version (most memory intensive)
+        # Vertical version (most memory intensive) - use actual duration
         print(f"Processing moment {i+1}: vertical version...")
         try:
             await create_vertical_version(
                 video_path,
                 float(moment.start_time),
-                15,
+                clip_duration,
                 os.path.join(output_dir, f"moment_{i+1}_vertical.mp4"),
                 moment,
                 project_id,
