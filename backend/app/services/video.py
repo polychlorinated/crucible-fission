@@ -392,3 +392,199 @@ async def add_captions(video_path: str, captions_srt: str, output_path: str):
     # TODO: Implement caption burn-in
     # For MVP, skip this and add in Phase 2
     pass
+
+
+async def stitch_clips(
+    video_path: str,
+    segments: List[tuple],
+    output_path: str,
+    project_id: str,
+    story_name: str,
+    db: Session,
+    add_transitions: bool = True
+):
+    """
+    Stitch multiple clip segments into a single narrative video.
+    
+    Args:
+        video_path: Source video file
+        segments: List of (start_time, duration) tuples
+        output_path: Where to save stitched video
+        project_id: Project ID for asset tracking
+        story_name: Name of the story arc (e.g., "transformation_story")
+        db: Database session
+        add_transitions: Whether to add fade transitions between clips
+    """
+    import asyncio
+    import tempfile
+    from app.services.storage import upload_to_drive
+    
+    print(f"[Stitch] Starting stitch for {story_name} with {len(segments)} segments")
+    
+    # Create temp directory for intermediate files
+    temp_dir = tempfile.mkdtemp(prefix="stitch_")
+    segment_files = []
+    
+    try:
+        # Step 1: Extract each segment
+        for i, (start_time, duration) in enumerate(segments):
+            segment_path = os.path.join(temp_dir, f"segment_{i:03d}.mp4")
+            
+            # Extract segment with same settings as extract_clip
+            cmd = [
+                FFMPEG_PATH,
+                '-y',
+                '-threads', '1',
+                '-i', video_path,
+                '-ss', str(start_time),
+                '-t', str(duration),
+                '-vf', 'scale=480:-2',
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '30',
+                '-x264-params', 'threads=1:lookahead-threads=1',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '64k',
+                '-movflags', '+faststart',
+                segment_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                log_ffmpeg_error(result, f"stitch_segment_{i}")
+                continue
+            
+            segment_files.append(segment_path)
+            print(f"[Stitch] Extracted segment {i+1}/{len(segments)}: {duration}s at {start_time}s")
+            await asyncio.sleep(0.3)
+        
+        if len(segment_files) < 2:
+            print(f"[Stitch] ERROR: Only {len(segment_files)} segments extracted, need at least 2")
+            return None
+        
+        # Step 2: Create concat file list
+        concat_file = os.path.join(temp_dir, "concat_list.txt")
+        with open(concat_file, 'w') as f:
+            for seg_file in segment_files:
+                # Escape single quotes in path
+                escaped_path = seg_file.replace("'", "'\\''")
+                f.write(f"file '{escaped_path}'\n")
+        
+        # Step 3: Concatenate segments
+        if add_transitions and len(segment_files) > 1:
+            # With fade transitions between clips
+            # Build complex filtergraph for fades
+            filter_parts = []
+            
+            for i in range(len(segment_files)):
+                filter_parts.append(f"[{i}:v]fade=t=out:st=999:d=0.5:alpha=1[v{i}];")
+                filter_parts.append(f"[{i}:a]afade=t=out:st=999:d=0.5[a{i}];")
+            
+            # Concatenate all
+            v_concat = ''.join([f"[v{i}]" for i in range(len(segment_files))])
+            a_concat = ''.join([f"[a{i}]" for i in range(len(segment_files))])
+            filter_parts.append(f"{v_concat}concat=n={len(segment_files)}:v=1:a=0[outv];")
+            filter_parts.append(f"{a_concat}concat=n={len(segment_files)}:v=0:a=1[outa]")
+            
+            filter_complex = ''.join(filter_parts)
+            
+            cmd = [
+                FFMPEG_PATH,
+                '-y',
+                '-threads', '1'
+            ]
+            
+            # Add all input files
+            for seg_file in segment_files:
+                cmd.extend(['-i', seg_file])
+            
+            cmd.extend([
+                '-filter_complex', filter_complex,
+                '-map', '[outv]',
+                '-map', '[outa]',
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '28',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '96k',
+                '-movflags', '+faststart',
+                output_path
+            ])
+        else:
+            # Simple concat without transitions (more reliable)
+            cmd = [
+                FFMPEG_PATH,
+                '-y',
+                '-threads', '1',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c', 'copy',  # Copy streams without re-encoding (faster)
+                '-movflags', '+faststart',
+                output_path
+            ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            log_ffmpeg_error(result, "stitch_concat")
+            return None
+        
+        # Calculate total duration
+        total_duration = sum(duration for _, duration in segments)
+        file_size = os.path.getsize(output_path) / (1024 * 1024)
+        
+        print(f"[Stitch] Success: {output_path} ({total_duration}s, {file_size:.1f}MB)")
+        
+        # Create asset record
+        asset = Asset(
+            project_id=project_id,
+            asset_type="video_story",
+            title=f"Story: {story_name}",
+            description=f"Narrative clip combining {len(segments)} moments ({total_duration}s)",
+            file_path=output_path,
+            file_size_mb=file_size,
+            duration_seconds=total_duration,
+            dimensions="480p",
+            format="mp4",
+            status="processing"
+        )
+        db.add(asset)
+        db.commit()
+        
+        # Upload to Drive or use local URL
+        filename = os.path.basename(output_path)
+        
+        try:
+            file_url = await upload_to_drive(output_path, filename)
+            asset.file_url = file_url
+            asset.status = "completed"
+            db.commit()
+            print(f"[Stitch] Uploaded to Drive: {file_url}")
+        except Exception as e:
+            print(f"[Stitch] Drive upload failed, using local URL: {e}")
+            project_id_from_path = os.path.basename(os.path.dirname(os.path.dirname(output_path)))
+            local_url = f"/clips/{project_id_from_path}/clips/{filename}"
+            
+            railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+            if railway_url:
+                full_url = f"https://{railway_url}{local_url}"
+            else:
+                full_url = local_url
+            
+            asset.file_url = full_url
+            asset.status = "completed"
+            db.commit()
+            print(f"[Stitch] Using local URL: {full_url}")
+        
+        return asset
+        
+    finally:
+        # Cleanup temp files
+        import shutil
+        try:
+            shutil.rmtree(temp_dir)
+            print(f"[Stitch] Cleaned up temp files")
+        except Exception as e:
+            print(f"[Stitch] Cleanup error (non-critical): {e}")

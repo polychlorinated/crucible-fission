@@ -109,13 +109,15 @@ async def process_video(project_id: str, file_path: str, db: Session):
         
         moments = await analyze_transcript(transcript_result, project_id, db)
         
-        # Stage 3: Story Arc Analysis
-        project.processing_stage = "analyzing_story_structure"
+        # Stage 3: Story Arc Analysis & Stitching
+        project.processing_stage = "building_story_clips"
         project.progress_percent = 45
         db.commit()
         
         try:
             from app.services.story_arcs import analyze_story_structure
+            from app.services.video import stitch_clips
+            
             story_analysis = analyze_story_structure(transcript_result)
             
             # Store story analysis in project metadata
@@ -125,8 +127,47 @@ async def process_video(project_id: str, file_path: str, db: Session):
             db.commit()
             
             print(f"[Upload] Story analysis complete: {story_analysis.get('arcs_identified', 0)} arcs identified")
+            
+            # Generate stitched story clips
+            suggestions = story_analysis.get('clip_suggestions', [])
+            print(f"[Upload] Generating {len(suggestions)} stitched story clips...")
+            
+            for i, suggestion in enumerate(suggestions[:3]):  # Top 3 stories
+                try:
+                    segments = suggestion.get('segments', [])
+                    if len(segments) < 2:
+                        print(f"[Upload] Skipping story {i+1}: only {len(segments)} segment")
+                        continue
+                    
+                    story_name = suggestion.get('name', f'story_{i+1}')
+                    output_path = os.path.join(
+                        settings.temp_dir, 
+                        str(project_id), 
+                        "clips",
+                        f"story_{story_name}.mp4"
+                    )
+                    
+                    print(f"[Upload] Stitching story '{story_name}' with {len(segments)} segments...")
+                    
+                    asset = await stitch_clips(
+                        video_path=file_path,
+                        segments=segments,
+                        output_path=output_path,
+                        project_id=project_id,
+                        story_name=story_name,
+                        db=db,
+                        add_transitions=False  # Simple concat for reliability
+                    )
+                    
+                    if asset:
+                        print(f"[Upload] Created story clip: {asset.file_url}")
+                    
+                except Exception as e:
+                    print(f"[Upload] Error stitching story {i+1}: {e}")
+                    continue
+                    
         except Exception as e:
-            print(f"[Upload] Story analysis error (non-critical): {e}")
+            print(f"[Upload] Story analysis/stitching error (non-critical): {e}")
         
         # Stage 4: Video clips
         project.processing_stage = "generating_video_clips"
