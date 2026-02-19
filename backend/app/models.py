@@ -158,4 +158,15 @@ def create_tables():
             ALTER TABLE projects 
             ALTER COLUMN processing_stage TYPE TEXT;
         """))
+        
+        # Add metadata column if it doesn't exist
+        try:
+            conn.execute(text("""
+                ALTER TABLE projects 
+                ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
+            """))
+            print("[DB Migration] Added metadata column to projects table")
+        except Exception as e:
+            print(f"[DB Migration] Metadata column may already exist: {e}")
+        
         conn.commit()
