@@ -79,12 +79,13 @@ async def health_check():
 
 
 # Import and include routers
-from app.routers import projects, upload, processing, assets
+from app.routers import projects, upload, processing, assets, enhanced_processing
 
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(processing.router, prefix="/api/processing", tags=["processing"])
 app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
+app.include_router(enhanced_processing.router, prefix="/api/enhanced", tags=["enhanced"])
 
 
 if __name__ == "__main__":

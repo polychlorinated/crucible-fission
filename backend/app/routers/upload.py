@@ -109,19 +109,81 @@ async def process_video(project_id: str, file_path: str, db: Session):
         
         moments = await analyze_transcript(transcript_result, project_id, db)
         
-        # Stage 3: Video clips
+        # Stage 3: Story Arc Analysis
+        project.processing_stage = "analyzing_story_structure"
+        project.progress_percent = 45
+        db.commit()
+        
+        try:
+            from app.services.story_arcs import analyze_story_structure
+            story_analysis = analyze_story_structure(transcript_result)
+            
+            # Store story analysis in project metadata
+            if not project.metadata:
+                project.metadata = {}
+            project.metadata['story_analysis'] = story_analysis
+            db.commit()
+            
+            print(f"[Upload] Story analysis complete: {story_analysis.get('arcs_identified', 0)} arcs identified")
+        except Exception as e:
+            print(f"[Upload] Story analysis error (non-critical): {e}")
+        
+        # Stage 4: Video clips
         project.processing_stage = "generating_video_clips"
         project.progress_percent = 60
         db.commit()
         
         await extract_moment_clips(moments, file_path, project_id, db)
         
-        # Stage 4: Text assets
+        # Stage 5: Text assets
         project.processing_stage = "generating_text_assets"
-        project.progress_percent = 85
+        project.progress_percent = 75
         db.commit()
         
         await generate_text_assets(moments, transcript_result, project_id, db)
+        
+        # Stage 6: Visual content generation
+        project.processing_stage = "generating_visuals"
+        project.progress_percent = 90
+        db.commit()
+        
+        try:
+            from app.services.visual_generator import VisualContentGenerator
+            generator = VisualContentGenerator()
+            
+            # Generate visuals for top moments
+            for i, moment in enumerate(moments[:2]):
+                if moment.quotable_text:
+                    visuals = await generator.generate_content_visuals(
+                        content=moment.quotable_text,
+                        content_type='quote_card'
+                    )
+                    
+                    if visuals['primary_visual']:
+                        visual = visuals['primary_visual']
+                        from app.models import Asset
+                        
+                        asset = Asset(
+                            project_id=project_id,
+                            moment_id=moment.id,
+                            asset_type="visual_image",
+                            title=f"AI Visual for Quote {i+1}",
+                            description=f"{visual.asset_type}: {moment.quotable_text[:60]}...",
+                            file_url=visual.source_url,
+                            metadata={
+                                'sourcing': visuals['sourcing'],
+                                'ai_prompt': visuals.get('ai_prompt'),
+                                'confidence': visual.confidence
+                            },
+                            status="completed"
+                        )
+                        db.add(asset)
+                        print(f"[Upload] Generated visual for moment {i+1}: {visuals['sourcing']}")
+            
+            db.commit()
+            
+        except Exception as e:
+            print(f"[Upload] Visual generation error (non-critical): {e}")
         
         # Complete
         project.status = "completed"
