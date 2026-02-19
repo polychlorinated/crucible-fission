@@ -349,7 +349,7 @@ def analyze_story_structure(transcript_result: Dict[str, Any]) -> Dict[str, Any]
     beats = detector.detect_story_beats(segments)
     
     # Build arcs
-    arcs = detector.build_story_beats(beats)
+    arcs = detector.build_story_arcs(beats)
     
     # Generate suggestions
     suggestions = detector.generate_clip_suggestions(arcs)
