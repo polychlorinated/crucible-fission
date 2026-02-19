@@ -130,6 +130,7 @@ class Asset(Base):
     # Metadata
     format = Column(String(20))  # mp4, jpg, txt, etc
     status = Column(String(50), default="pending")  # pending, processing, completed, failed
+    metadata = Column(JSON, default=dict)
 
 
 def get_db():
@@ -159,7 +160,7 @@ def create_tables():
             ALTER COLUMN processing_stage TYPE TEXT;
         """))
         
-        # Add metadata column if it doesn't exist
+        # Add metadata column to projects if it doesn't exist
         try:
             conn.execute(text("""
                 ALTER TABLE projects 
@@ -168,5 +169,15 @@ def create_tables():
             print("[DB Migration] Added metadata column to projects table")
         except Exception as e:
             print(f"[DB Migration] Metadata column may already exist: {e}")
+        
+        # Add metadata column to assets if it doesn't exist
+        try:
+            conn.execute(text("""
+                ALTER TABLE assets 
+                ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
+            """))
+            print("[DB Migration] Added metadata column to assets table")
+        except Exception as e:
+            print(f"[DB Migration] Assets metadata column may already exist: {e}")
         
         conn.commit()

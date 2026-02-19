@@ -17,15 +17,12 @@ class VisualAsset:
     keywords: List[str]
     confidence: float  # How well it matches the content
 
-
-from app.config import get_settings
-
-settings = get_settings()
-
 class VisualContentGenerator:
     """Generate visual assets for content with priority-based sourcing."""
     
     def __init__(self, openai_api_key: str = None, unsplash_key: str = None):
+        from app.config import get_settings
+        settings = get_settings()
         self.openai_api_key = openai_api_key or settings.openai_api_key or os.getenv('OPENAI_API_KEY')
         self.unsplash_key = unsplash_key or settings.unsplash_access_key or os.getenv('UNSPLASH_ACCESS_KEY')
     
