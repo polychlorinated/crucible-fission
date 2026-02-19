@@ -54,7 +54,7 @@ async def startup_event():
                 time.sleep(2)
             else:
                 print(f"Database connection failed after {max_retries} attempts: {e}")
-                raise
+                # Don't raise - let the app start anyway
 
 
 @app.get("/")
