@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     moonshot_api_key: str = ""
     moonshot_base_url: str = "https://api.moonshot.cn/v1"
     
+    # OpenAI API (for DALL-E image generation)
+    openai_api_key: str = ""
+    
+    # Unsplash API (for stock image fallback)
+    unsplash_access_key: str = ""
+    
     # Google Drive
     google_credentials_path: str = "/app/google-credentials.json"
     
