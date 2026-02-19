@@ -37,6 +37,7 @@ class Project(Base):
     user_id = Column(UUID(as_uuid=True))
     duration_seconds = Column(Integer)
     file_size_mb = Column(DECIMAL(10, 2))
+    metadata = Column(JSON, default=dict)
     
     # Relationships
     transcript = relationship("Transcript", back_populates="project", uselist=False)
