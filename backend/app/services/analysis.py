@@ -117,34 +117,32 @@ async def _create_fallback_moments(segments: List[Dict], project_id: str, db: Se
     """Create simple moments as fallback if AI analysis fails."""
     moments = []
     
-    # Take every 30-second segment as a moment
-    current_start = 0
-    current_text = []
-    
-    for seg in segments:
-        if seg["start"] - current_start > 30:
-            # Save current moment
-            if current_text:
-                moment = Moment(
-                    project_id=project_id,
-                    moment_type="general",
-                    start_time=current_start,
-                    end_time=seg["start"],
-                    transcript=" ".join(current_text),
-                    summary="Key moment from transcript",
-                    sentiment_score=0,
-                    importance_score=0.5,
-                    quotable_text=current_text[0] if current_text else "",
-                    quotable_score=0.5
-                )
-                db.add(moment)
-                moments.append(moment)
-            
-            current_start = seg["start"]
-            current_text = []
-        
-        current_text.append(seg["text"])
-    
+    # Take first 3 segments as key moments
+    for i, seg in enumerate(segments[:3]):
+        text = seg.get("text", "").strip()
+        if not text:
+            continue
+
+        # Use the full text as the quotable text
+        # This ensures quotes are never empty
+        quotable_text = text
+
+        moment = Moment(
+            project_id=project_id,
+            moment_type="general",
+            start_time=seg.get("start", 0),
+            end_time=seg.get("end", 0),
+            transcript=text,
+            summary=f"Key moment: {text[:100]}..." if len(text) > 100 else f"Key moment: {text}",
+            sentiment_score=0,
+            importance_score=0.8 if i == 0 else 0.6,
+            quotable_text=quotable_text,
+            quotable_score=0.9 if i == 0 else 0.7
+        )
+        db.add(moment)
+        moments.append(moment)
+        print(f"[Analysis] Created fallback moment {i+1}: {quotable_text[:50]}...")
+
     db.commit()
     return moments
 

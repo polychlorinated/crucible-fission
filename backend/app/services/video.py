@@ -166,6 +166,24 @@ async def extract_moment_clips(moments: List[Moment], video_path: str, project_i
         except Exception as e:
             print(f"Error extracting 5s clip for moment {i+1}: {e}")
             clips_failed += 1
+        
+        # Vertical version (most memory intensive)
+        print(f"Processing moment {i+1}: vertical version...")
+        try:
+            await create_vertical_version(
+                video_path,
+                float(moment.start_time),
+                15,
+                os.path.join(output_dir, f"moment_{i+1}_vertical.mp4"),
+                moment,
+                project_id,
+                db
+            )
+            clips_created += 1
+            await asyncio.sleep(2)
+        except Exception as e:
+            print(f"Error extracting vertical clip for moment {i+1}: {e}")
+            clips_failed += 1
     
     print(f"Clip extraction complete: {clips_created} created, {clips_failed} failed")
     
@@ -242,18 +260,32 @@ async def extract_clip(
     db.commit()
     
     # Upload to Google Drive for persistent storage
+    filename = os.path.basename(output_path)
+    
     try:
-        filename = os.path.basename(output_path)
         file_url = await upload_to_drive(output_path, filename)
         asset.file_url = file_url
         asset.status = "completed"
         db.commit()
         print(f"[Video] Uploaded to Drive: {file_url}")
     except Exception as e:
-        print(f"[Video] Failed to upload to Drive: {e}")
-        # Keep local file path - can still be downloaded from same instance
+        print(f"[Video] Drive upload failed, using local URL: {e}")
+        # Fallback: serve from Railway directly
+        # Get project ID from output_path
+        project_id_from_path = os.path.basename(os.path.dirname(os.path.dirname(output_path)))
+        local_url = f"/clips/{project_id_from_path}/clips/{filename}"
+        
+        # Also provide full URL for external access
+        railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        if railway_url:
+            full_url = f"https://{railway_url}{local_url}"
+        else:
+            full_url = local_url
+            
+        asset.file_url = full_url
         asset.status = "completed"
         db.commit()
+        print(f"[Video] Using local URL: {full_url}")
 
 
 async def create_vertical_version(
@@ -318,17 +350,30 @@ async def create_vertical_version(
     db.commit()
     
     # Upload to Google Drive for persistent storage
+    filename = os.path.basename(output_path)
+    
     try:
-        filename = os.path.basename(output_path)
         file_url = await upload_to_drive(output_path, filename)
         asset.file_url = file_url
         asset.status = "completed"
         db.commit()
         print(f"[Video] Uploaded vertical to Drive: {file_url}")
     except Exception as e:
-        print(f"[Video] Failed to upload vertical to Drive: {e}")
+        print(f"[Video] Drive upload failed for vertical, using local URL: {e}")
+        # Fallback: serve from Railway directly
+        project_id_from_path = os.path.basename(os.path.dirname(os.path.dirname(output_path)))
+        local_url = f"/clips/{project_id_from_path}/clips/{filename}"
+        
+        railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        if railway_url:
+            full_url = f"https://{railway_url}{local_url}"
+        else:
+            full_url = local_url
+            
+        asset.file_url = full_url
         asset.status = "completed"
         db.commit()
+        print(f"[Video] Using local URL for vertical: {full_url}")
 
 
 async def add_captions(video_path: str, captions_srt: str, output_path: str):

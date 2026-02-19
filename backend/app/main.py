@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import os
 import uuid
@@ -32,6 +33,9 @@ app.add_middleware(
 
 # Ensure temp directory exists
 os.makedirs(settings.temp_dir, exist_ok=True)
+
+# Serve video clips statically
+app.mount("/clips", StaticFiles(directory=settings.temp_dir), name="clips")
 
 
 @app.on_event("startup")
