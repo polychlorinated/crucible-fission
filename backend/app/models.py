@@ -146,38 +146,48 @@ def create_tables():
     """Create all database tables."""
     Base.metadata.create_all(bind=engine)
     
-    # Migration: Schema updates
+    # Migration: Schema updates (ignore errors if tables don't exist yet)
     from sqlalchemy import text
-    with engine.connect() as conn:
-        # Make input_video_url nullable
-        conn.execute(text("""
-            ALTER TABLE projects 
-            ALTER COLUMN input_video_url DROP NOT NULL;
-        """))
-        # Make processing_stage Text instead of String(100)
-        conn.execute(text("""
-            ALTER TABLE projects 
-            ALTER COLUMN processing_stage TYPE TEXT;
-        """))
-        
-        # Add metadata column to projects if it doesn't exist
-        try:
-            conn.execute(text("""
-                ALTER TABLE projects 
-                ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
-            """))
-            print("[DB Migration] Added metadata column to projects table")
-        except Exception as e:
-            print(f"[DB Migration] Metadata column may already exist: {e}")
-        
-        # Add metadata column to assets if it doesn't exist
-        try:
-            conn.execute(text("""
-                ALTER TABLE assets 
-                ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
-            """))
-            print("[DB Migration] Added metadata column to assets table")
-        except Exception as e:
-            print(f"[DB Migration] Assets metadata column may already exist: {e}")
-        
-        conn.commit()
+    try:
+        with engine.connect() as conn:
+            # Make input_video_url nullable
+            try:
+                conn.execute(text("""
+                    ALTER TABLE projects 
+                    ALTER COLUMN input_video_url DROP NOT NULL;
+                """))
+            except Exception:
+                pass  # Column may already be nullable or table doesn't exist
+            
+            # Make processing_stage Text instead of String(100)
+            try:
+                conn.execute(text("""
+                    ALTER TABLE projects 
+                    ALTER COLUMN processing_stage TYPE TEXT;
+                """))
+            except Exception:
+                pass
+            
+            # Add metadata column to projects if it doesn't exist
+            try:
+                conn.execute(text("""
+                    ALTER TABLE projects 
+                    ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
+                """))
+                print("[DB Migration] Added metadata column to projects table")
+            except Exception:
+                pass
+            
+            # Add metadata column to assets if it doesn't exist
+            try:
+                conn.execute(text("""
+                    ALTER TABLE assets 
+                    ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT '{}';
+                """))
+                print("[DB Migration] Added metadata column to assets table")
+            except Exception:
+                pass
+            
+            conn.commit()
+    except Exception as e:
+        print(f"[DB Migration] Migration warnings (non-critical): {e}")
