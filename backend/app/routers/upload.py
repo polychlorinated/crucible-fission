@@ -120,11 +120,15 @@ async def process_video(project_id: str, file_path: str, db: Session):
             
             story_analysis = analyze_story_structure(transcript_result)
             
-            # Store story analysis in project metadata
-            if not project.metadata:
-                project.metadata = {}
-            project.metadata['story_analysis'] = story_analysis
-            db.commit()
+            # Store story analysis in project metadata (with error handling)
+            try:
+                if not project.metadata:
+                    project.metadata = {}
+                project.metadata['story_analysis'] = story_analysis
+                db.commit()
+            except Exception as metadata_error:
+                print(f"[Upload] Warning: Could not save metadata: {metadata_error}")
+                # Continue processing even if metadata save fails
             
             print(f"[Upload] Story analysis complete: {story_analysis.get('arcs_identified', 0)} arcs identified")
             
